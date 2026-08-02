@@ -1493,7 +1493,13 @@ button {
   }
 
   .landing {
-    padding-top: 65px;
+    padding-top: 46px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .landing .hero {
+    order: 1;
   }
 
   .hero h1 {
@@ -1506,8 +1512,9 @@ button {
   }
 
   .mode-grid {
+    order: 3;
     grid-template-columns: 1fr;
-    margin-top: 49px;
+    margin-top: 16px;
   }
 
   .mode-card {
@@ -1515,6 +1522,8 @@ button {
   }
 
   .install-card {
+    order: 2;
+    margin-top: 34px;
     padding: 22px;
     grid-template-columns: auto minmax(0, 1fr);
     align-items: start;
@@ -1539,6 +1548,7 @@ button {
   }
 
   .trust-row {
+    order: 4;
     align-items: flex-start;
     gap: 20px;
     flex-wrap: wrap;

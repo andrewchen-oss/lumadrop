@@ -80,9 +80,9 @@ export function Landing({
           </span>
           <button className="install-button" onClick={onInstall} disabled={installed} type="button">
             {installed ? <Check size={17} /> : <Download size={17} />}
-            {installed ? "Installed" : isIos ? "How to install" : "Install LumaDrop"}
+            {installed ? "Installed" : "Install LumaDrop"}
           </button>
-          <small>No login · No app store</small>
+          <small>{isIos ? "Safari setup · No login · No app store" : "No login · No app store"}</small>
         </div>
       </section>
 
