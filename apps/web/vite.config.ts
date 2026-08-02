@@ -4,10 +4,10 @@ import { cloudflare } from "@cloudflare/vite-plugin";
 
 import { sites } from "./build/sites-vite-plugin.js";
 
-export default defineConfig({
-  plugins: [react(), sites(), cloudflare()],
+export default defineConfig(({ mode }) => ({
+  plugins: mode === "test" ? [react()] : [react(), sites(), cloudflare()],
   build: {
     target: "es2022",
     sourcemap: true
   }
-});
+}));

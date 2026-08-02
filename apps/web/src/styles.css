@@ -148,6 +148,13 @@ button {
   box-shadow: 0 0 0 3px rgba(113, 183, 44, 0.13);
 }
 
+.offline-badge:not(.is-ready) i,
+.cache-status:not(.is-ready) i {
+  background: #a4a79c;
+  box-shadow: 0 0 0 3px rgba(130, 133, 124, 0.12);
+  animation: livePulse 1.25s ease-in-out infinite;
+}
+
 .page-shell {
   width: min(1180px, calc(100% - 56px));
   margin: 0 auto;
@@ -321,6 +328,147 @@ button {
   transform: translate(3px, -3px);
 }
 
+.install-card {
+  position: relative;
+  margin-top: 16px;
+  padding: 27px 28px;
+  border: 1px solid #cbd0c2;
+  border-radius: 22px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 23px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 88% 12%, rgba(202, 255, 79, 0.48), transparent 14rem),
+    rgba(255, 255, 255, 0.62);
+}
+
+.install-card::after {
+  content: "";
+  position: absolute;
+  width: 140px;
+  height: 140px;
+  right: -60px;
+  top: -86px;
+  border: 1px solid rgba(86, 108, 42, 0.13);
+  border-radius: 34px;
+  transform: rotate(20deg);
+  pointer-events: none;
+}
+
+.install-card.is-installed {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.install-card-icon {
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  color: var(--acid);
+  background: var(--dark);
+  box-shadow: 0 12px 30px rgba(17, 19, 15, 0.13);
+}
+
+.install-card.is-installed .install-card-icon {
+  color: var(--ink);
+  background: var(--acid);
+}
+
+.install-card-copy {
+  min-width: 0;
+}
+
+.install-card-copy > span {
+  color: #72756b;
+  font-family: "DM Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.install-card-copy h2 {
+  margin: 6px 0 0;
+  font-size: 21px;
+  line-height: 1.2;
+  letter-spacing: -0.045em;
+}
+
+.install-card-copy p {
+  max-width: 650px;
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.install-card-action {
+  position: relative;
+  z-index: 1;
+  min-width: 195px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.cache-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: #66695f;
+  font-family: "DM Mono", monospace;
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.cache-status i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #71b72c;
+  box-shadow: 0 0 0 3px rgba(113, 183, 44, 0.13);
+}
+
+.install-button {
+  min-height: 44px;
+  padding: 11px 16px;
+  border: 1px solid var(--dark);
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: white;
+  background: var(--dark);
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: transform 160ms ease, background 160ms ease;
+}
+
+.install-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: #252820;
+}
+
+.install-button:disabled {
+  border-color: #c6c9bf;
+  color: #73766d;
+  background: #e8eae2;
+  cursor: default;
+}
+
+.install-card-action small {
+  color: #85887e;
+  font-size: 9px;
+  text-align: center;
+}
+
 .trust-row {
   margin-top: 30px;
   padding: 25px 4px;
@@ -356,6 +504,122 @@ button {
   font-size: 10px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.install-modal-backdrop {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  padding: 24px;
+  display: grid;
+  place-items: center;
+  background: rgba(13, 15, 11, 0.64);
+  backdrop-filter: blur(8px);
+}
+
+.install-modal {
+  position: relative;
+  width: min(500px, 100%);
+  max-height: min(720px, calc(100vh - 48px));
+  padding: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 25px;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 90% 6%, rgba(202, 255, 79, 0.42), transparent 13rem),
+    #f7f7f2;
+  box-shadow: 0 35px 100px rgba(0, 0, 0, 0.32);
+}
+
+.install-modal-close {
+  position: absolute;
+  top: 17px;
+  right: 17px;
+  width: 37px;
+  height: 37px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.68);
+  cursor: pointer;
+}
+
+.install-modal-kicker {
+  color: #6e7167;
+  font-family: "DM Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.install-modal h2 {
+  max-width: 370px;
+  margin: 13px 0 0;
+  font-size: 38px;
+  line-height: 1.02;
+  letter-spacing: -0.06em;
+}
+
+.install-modal > p {
+  max-width: 410px;
+  margin: 17px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.install-steps {
+  margin: 26px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  list-style: none;
+}
+
+.install-steps li {
+  min-height: 67px;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(255, 255, 255, 0.62);
+  color: #55584f;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.install-steps li > span {
+  flex: 0 0 auto;
+  width: 55px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #53564d;
+}
+
+.install-steps li > span > strong {
+  width: 25px;
+  height: 25px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  background: var(--acid);
+  font-family: "DM Mono", monospace;
+  font-size: 10px;
+}
+
+.install-steps b {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.install-modal-done {
+  width: 100%;
+  margin-top: 18px;
 }
 
 .site-footer {
@@ -1250,6 +1514,30 @@ button {
     min-height: 166px;
   }
 
+  .install-card {
+    padding: 22px;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 17px;
+  }
+
+  .install-card-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 15px;
+  }
+
+  .install-card-action {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+    margin-top: 3px;
+  }
+
+  .install-button {
+    min-height: 48px;
+  }
+
   .trust-row {
     align-items: flex-start;
     gap: 20px;
@@ -1311,6 +1599,23 @@ button {
 
   .site-footer {
     min-height: 60px;
+  }
+
+  .install-modal-backdrop {
+    padding: 12px;
+    place-items: end center;
+  }
+
+  .install-modal {
+    width: 100%;
+    max-height: calc(100vh - 24px);
+    padding: 29px 22px 22px;
+    border-radius: 23px;
+  }
+
+  .install-modal h2 {
+    padding-right: 30px;
+    font-size: 33px;
   }
 }
 

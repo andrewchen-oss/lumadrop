@@ -1,6 +1,8 @@
 import { lazy, Suspense, useState } from "react";
 
+import { InstallInstructions } from "./components/InstallInstructions";
 import { Landing } from "./components/Landing";
+import { usePwaExperience } from "./hooks/usePwaExperience";
 
 const loadSenderPanel = () => import("./components/SenderPanel");
 const loadReceiverPanel = () => import("./components/ReceiverPanel");
@@ -11,6 +13,7 @@ type AppMode = "home" | "send" | "receive";
 
 export default function App() {
   const [mode, setMode] = useState<AppMode>("home");
+  const pwa = usePwaExperience();
 
   return (
     <div className="app-frame">
@@ -20,8 +23,10 @@ export default function App() {
           <span>LumaDrop</span>
         </button>
         <div className="header-meta">
-          <span className="offline-badge"><i /> Offline ready</span>
-          <span className="build-label">MVP · 01</span>
+          <span className={`offline-badge${pwa.offlineReady ? " is-ready" : ""}`}>
+            <i /> {pwa.offlineReady ? "Ready offline" : "Preparing offline"}
+          </span>
+          <span className="build-label">Installable · MVP</span>
         </div>
       </header>
 
@@ -30,6 +35,10 @@ export default function App() {
           onChooseMode={setMode}
           onPreloadSend={() => void loadSenderPanel()}
           onPreloadReceive={() => void loadReceiverPanel()}
+          installed={pwa.installed}
+          isIos={pwa.isIos}
+          offlineReady={pwa.offlineReady}
+          onInstall={() => void pwa.requestInstall()}
         />
       )}
       <Suspense fallback={<main className="page-shell route-loading"><span className="spinner" /> Opening optical tools…</main>}>
@@ -39,8 +48,14 @@ export default function App() {
 
       <footer className="site-footer">
         <span>© LumaDrop</span>
-        <span>Files move. Data stays.</span>
+        <span>No account. No cloud. Data stays.</span>
       </footer>
+
+      <InstallInstructions
+        isIos={pwa.isIos}
+        onClose={pwa.closeInstructions}
+        open={pwa.instructionsOpen}
+      />
     </div>
   );
 }
