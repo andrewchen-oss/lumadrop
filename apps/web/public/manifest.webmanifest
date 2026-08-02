@@ -1,0 +1,17 @@
+{
+  "name": "LumaDrop",
+  "short_name": "LumaDrop",
+  "description": "Move small files between devices through light.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f4ef",
+  "theme_color": "#f4f4ef",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

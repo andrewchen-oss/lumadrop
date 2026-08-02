@@ -1,0 +1,29 @@
+{
+  "name": "@lumadrop/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc -b && vite build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@lumadrop/core": "*",
+    "@zxing/browser": "^0.2.1",
+    "lucide-react": "^1.28.0",
+    "qrcode": "^1.5.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "1.37.1",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.5",
+    "vite": "^8.2.0",
+    "vitest": "^4.1.10",
+    "wrangler": "4.92.0"
+  }
+}

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+packages/*/dist/
+apps/*/dist/
+.wrangler/
+apps/*/.wrangler/
+.DS_Store
+*.log
+*.tsbuildinfo
