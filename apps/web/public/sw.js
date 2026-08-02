@@ -1,4 +1,4 @@
-const CACHE_NAME = "lumadrop-shell-v2";
+const CACHE_NAME = "lumadrop-shell-v3";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -7,6 +7,13 @@ const APP_SHELL = [
   "/icon-192.png",
   "/icon-512.png",
   "/apple-touch-icon.png",
+  // One release of compatibility assets lets devices with the v1 offline shell
+  // boot successfully, update this worker, and migrate to the current cache.
+  "/assets/index-DF-V2nH3.js",
+  "/assets/index-Bq9ElJAB.css",
+  "/assets/SenderPanel-CaMJcx8t.js",
+  "/assets/ReceiverPanel-Bwj6dVxp.js",
+  "/assets/format-DnoHwmwy.js",
 ];
 
 self.addEventListener("install", (event) => {
