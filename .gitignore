@@ -7,3 +7,4 @@ apps/*/.wrangler/
 .DS_Store
 *.log
 *.tsbuildinfo
+.vercel
