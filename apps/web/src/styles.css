@@ -35,7 +35,8 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
 }
 
@@ -47,6 +48,7 @@ a {
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
+textarea:focus-visible,
 [role="button"]:focus-visible {
   outline: 3px solid rgba(130, 190, 30, 0.38);
   outline-offset: 3px;
@@ -713,6 +715,39 @@ button {
   margin: 56px auto 0;
 }
 
+.send-type-tabs {
+  width: fit-content;
+  margin: 0 auto 14px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  display: flex;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.send-type-tabs button {
+  min-width: 112px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #6d7067;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.send-type-tabs button.is-active {
+  color: var(--ink);
+  background: var(--acid);
+  box-shadow: 0 5px 14px rgba(120, 157, 41, 0.16);
+}
+
 .drop-zone {
   position: relative;
   min-height: 290px;
@@ -777,6 +812,81 @@ button {
   font-size: 9px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+}
+
+.text-composer {
+  min-height: 290px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 25px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.54);
+}
+
+.text-composer-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.text-composer-heading label {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.text-composer-heading span {
+  color: var(--muted);
+  font-family: "DM Mono", monospace;
+  font-size: 9px;
+}
+
+.text-composer textarea {
+  width: 100%;
+  min-height: 150px;
+  margin-top: 13px;
+  padding: 15px;
+  border: 1px solid #d7d9d0;
+  border-radius: 14px;
+  resize: vertical;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.76);
+  font-family: "DM Mono", ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.text-composer textarea::placeholder {
+  color: #a0a39a;
+}
+
+.text-composer-footer {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.text-composer-footer p {
+  max-width: 390px;
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: #7b655d;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.text-composer-footer p svg {
+  flex: 0 0 auto;
+  color: #a7634d;
+}
+
+.text-composer-footer .primary-button {
+  flex: 0 0 auto;
 }
 
 .inline-status,
@@ -1389,6 +1499,13 @@ button {
   background: #d4ff69;
 }
 
+.primary-button:disabled {
+  border-color: #d5d8cf;
+  color: #91948a;
+  background: #e7e9e1;
+  cursor: default;
+}
+
 .secondary-button {
   border: 1px solid var(--line);
   background: white;
@@ -1460,6 +1577,69 @@ button {
 .received-file-card .primary-button {
   grid-column: 1 / -1;
   margin-top: 4px;
+}
+
+.received-text-card {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+}
+
+.received-text-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.received-text-heading > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.received-text-heading > span svg {
+  padding: 2px;
+  border-radius: 50%;
+  color: var(--ink);
+  background: var(--acid);
+}
+
+.received-text-heading small {
+  color: var(--muted);
+  font-family: "DM Mono", monospace;
+  font-size: 8px;
+}
+
+.received-text-card textarea {
+  width: 100%;
+  min-height: 145px;
+  margin-top: 11px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  resize: vertical;
+  color: var(--ink);
+  background: white;
+  font-family: "DM Mono", ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.received-text-actions {
+  margin-top: 9px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.received-text-card > p {
+  margin: 10px 2px 0;
+  color: #8a685e;
+  font-size: 9px;
+  line-height: 1.45;
 }
 
 @media (max-width: 900px) {
@@ -1596,6 +1776,28 @@ button {
 
   .drop-zone {
     min-height: 250px;
+  }
+
+  .send-type-tabs {
+    width: 100%;
+  }
+
+  .send-type-tabs button {
+    flex: 1;
+  }
+
+  .text-composer {
+    min-height: 0;
+    padding: 18px;
+  }
+
+  .text-composer-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .text-composer-footer .primary-button {
+    width: 100%;
   }
 
   .sender-sidebar,

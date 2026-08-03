@@ -1,7 +1,5 @@
-const CACHE_NAME = "lumadrop-shell-v3";
+const CACHE_NAME = "lumadrop-shell-v4";
 const APP_SHELL = [
-  "/",
-  "/index.html",
   "/manifest.webmanifest",
   "/icon.svg",
   "/icon-192.png",
@@ -16,8 +14,26 @@ const APP_SHELL = [
   "/assets/format-DnoHwmwy.js",
 ];
 
+async function cacheAppShell() {
+  const cache = await caches.open(CACHE_NAME);
+  await cache.addAll(APP_SHELL);
+
+  const indexResponse = await fetch("/index.html", { cache: "no-store" });
+  if (!indexResponse.ok) {
+    throw new Error("Could not cache the LumaDrop app shell.");
+  }
+
+  await cache.put("/", indexResponse.clone());
+  await cache.put("/index.html", indexResponse.clone());
+  const html = await indexResponse.text();
+  const currentAssets = Array.from(
+    new Set(Array.from(html.matchAll(/(?:src|href)=["'](\/assets\/[^"']+)["']/g), (match) => match[1]))
+  );
+  await cache.addAll(currentAssets);
+}
+
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
+  event.waitUntil(cacheAppShell());
   self.skipWaiting();
 });
 

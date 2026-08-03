@@ -5,7 +5,7 @@ import {
   verifyPayloadHash
 } from "@lumadrop/core";
 import { BrowserQRCodeReader, type IScannerControls } from "@zxing/browser";
-import { ArrowLeft, Camera, Check, Download, Image, RefreshCw, ScanLine, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Camera, Check, Copy, Download, Image, RefreshCw, ScanLine, ShieldCheck } from "lucide-react";
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 
 import { decodeFrameText } from "../lib/frame-text";
@@ -17,11 +17,9 @@ type ReceiverPanelProps = {
 
 type ScannerStatus = "idle" | "requesting" | "scanning" | "verifying" | "complete" | "error";
 
-type ReceivedFile = {
-  name: string;
-  size: number;
-  url: string;
-};
+type ReceivedTransfer =
+  | { kind: "file"; name: string; size: number; url: string }
+  | { kind: "text"; name: string; size: number; text: string; url: string };
 
 export function ReceiverPanel({ onBack }: ReceiverPanelProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -30,13 +28,15 @@ export function ReceiverPanel({ onBack }: ReceiverPanelProps) {
   const seenSequencesRef = useRef(new Set<number>());
   const completedRef = useRef(false);
   const downloadUrlRef = useRef<string | null>(null);
+  const copyResetTimerRef = useRef<number | null>(null);
 
   const [status, setStatus] = useState<ScannerStatus>("idle");
   const [progress, setProgress] = useState(0);
   const [framesSeen, setFramesSeen] = useState(0);
   const [sessionCode, setSessionCode] = useState<string | null>(null);
   const [message, setMessage] = useState("Ready when you are.");
-  const [receivedFile, setReceivedFile] = useState<ReceivedFile | null>(null);
+  const [receivedTransfer, setReceivedTransfer] = useState<ReceivedTransfer | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const stopScanner = useCallback(() => {
     scannerControlsRef.current?.stop();
@@ -102,18 +102,20 @@ export function ReceiverPanel({ onBack }: ReceiverPanelProps) {
 
     try {
       const recovered = unwrapFilePayload(payload);
-      const blob = new Blob([recovered.bytes.slice().buffer], {
-        type: recovered.meta.type || "application/octet-stream"
-      });
+      const isText = recovered.meta.kind === "text";
+      const text = isText ? new TextDecoder("utf-8", { fatal: true }).decode(recovered.bytes) : null;
+      const blob = new Blob([recovered.bytes.slice().buffer], { type: recovered.meta.type || "application/octet-stream" });
       if (downloadUrlRef.current) {
         URL.revokeObjectURL(downloadUrlRef.current);
       }
       const url = URL.createObjectURL(blob);
       downloadUrlRef.current = url;
-      setReceivedFile({ name: recovered.meta.name, size: recovered.bytes.length, url });
+      setReceivedTransfer(isText && text !== null
+        ? { kind: "text", name: recovered.meta.name, size: recovered.bytes.length, text, url }
+        : { kind: "file", name: recovered.meta.name, size: recovered.bytes.length, url });
       setProgress(100);
       setStatus("complete");
-      setMessage("File recovered and verified.");
+      setMessage(isText ? "Text recovered and verified." : "File recovered and verified.");
       scannerControlsRef.current?.stop();
       scannerControlsRef.current = null;
     } catch (cause) {
@@ -187,14 +189,42 @@ export function ReceiverPanel({ onBack }: ReceiverPanelProps) {
     setProgress(0);
     setFramesSeen(0);
     setSessionCode(null);
-    setReceivedFile(null);
+    setReceivedTransfer(null);
+    setCopied(false);
+    if (copyResetTimerRef.current !== null) {
+      window.clearTimeout(copyResetTimerRef.current);
+      copyResetTimerRef.current = null;
+    }
     setMessage("Ready when you are.");
+  };
+
+  const copyReceivedText = async () => {
+    if (receivedTransfer?.kind !== "text") {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(receivedTransfer.text);
+      setCopied(true);
+      setMessage("Text copied to clipboard.");
+      if (copyResetTimerRef.current !== null) {
+        window.clearTimeout(copyResetTimerRef.current);
+      }
+      copyResetTimerRef.current = window.setTimeout(() => {
+        setCopied(false);
+        copyResetTimerRef.current = null;
+      }, 1800);
+    } catch {
+      setMessage("Copy was blocked. Select the received text and copy it manually.");
+    }
   };
 
   useEffect(() => () => {
     scannerControlsRef.current?.stop();
     if (downloadUrlRef.current) {
       URL.revokeObjectURL(downloadUrlRef.current);
+    }
+    if (copyResetTimerRef.current !== null) {
+      window.clearTimeout(copyResetTimerRef.current);
     }
   }, []);
 
@@ -259,12 +289,29 @@ export function ReceiverPanel({ onBack }: ReceiverPanelProps) {
             </div>
           )}
 
-          {receivedFile ? (
-            <div className="received-file-card">
-              <div className="received-check"><Check size={20} /></div>
-              <div><strong>{receivedFile.name}</strong><span>{formatBytes(receivedFile.size)} · SHA-256 verified</span></div>
-              <a className="primary-button" href={receivedFile.url} download={receivedFile.name}><Download size={17} /> Save file</a>
-            </div>
+          {receivedTransfer ? (
+            receivedTransfer.kind === "text" ? (
+              <div className="received-text-card">
+                <div className="received-text-heading">
+                  <span><Check size={16} /> Received text</span>
+                  <small>{formatBytes(receivedTransfer.size)} · verified</small>
+                </div>
+                <textarea aria-label="Received text" value={receivedTransfer.text} readOnly spellCheck={false} />
+                <div className="received-text-actions">
+                  <button className="primary-button" type="button" onClick={() => void copyReceivedText()}>
+                    {copied ? <Check size={17} /> : <Copy size={17} />} {copied ? "Copied" : "Copy text"}
+                  </button>
+                  <a className="secondary-button" href={receivedTransfer.url} download={receivedTransfer.name}><Download size={17} /> Save .txt</a>
+                </div>
+                <p>Keep sensitive text away from nearby people and cameras.</p>
+              </div>
+            ) : (
+              <div className="received-file-card">
+                <div className="received-check"><Check size={20} /></div>
+                <div><strong>{receivedTransfer.name}</strong><span>{formatBytes(receivedTransfer.size)} · SHA-256 verified</span></div>
+                <a className="primary-button" href={receivedTransfer.url} download={receivedTransfer.name}><Download size={17} /> Save file</a>
+              </div>
+            )
           ) : (
             <div className="receiver-actions">
               {!cameraActive ? (

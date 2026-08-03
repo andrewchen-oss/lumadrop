@@ -1,5 +1,5 @@
 import { LTEncoder, sha256, wrapFilePayload } from "@lumadrop/core";
-import { ArrowLeft, File, Gauge, Pause, Play, RefreshCw, ShieldCheck } from "lucide-react";
+import { ArrowLeft, File, Gauge, MessageSquareText, Pause, Play, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react";
 import QRCode from "qrcode";
 import { useEffect, useMemo, useState } from "react";
 
@@ -9,10 +9,13 @@ import { DropZone } from "./DropZone";
 
 const MAX_FILE_BYTES = 256 * 1024;
 const BLOCK_LENGTH = 128;
+const textEncoder = new TextEncoder();
 
 type PreparedTransfer = {
   encoder: LTEncoder;
-  file: File;
+  displayName: string;
+  kind: "file" | "text";
+  size: number;
   sessionId: number;
   cycleFrames: number;
 };
@@ -22,6 +25,8 @@ type SenderPanelProps = {
 };
 
 export function SenderPanel({ onBack }: SenderPanelProps) {
+  const [inputMode, setInputMode] = useState<"file" | "text">("file");
+  const [text, setText] = useState("");
   const [transfer, setTransfer] = useState<PreparedTransfer | null>(null);
   const [sequence, setSequence] = useState(0);
   const [renderedFrame, setRenderedFrame] = useState<{ url: string; sequence: number } | null>(null);
@@ -29,6 +34,32 @@ export function SenderPanel({ onBack }: SenderPanelProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const activateTransfer = async (
+    bytes: Uint8Array,
+    metadata: { name: string; size: number; modified: number; type: string; kind: "file" | "text" }
+  ) => {
+    const payload = wrapFilePayload(bytes, metadata);
+    const digest = await sha256(payload);
+    const sessionId = crypto.getRandomValues(new Uint32Array(1))[0]!;
+    const encoder = new LTEncoder(payload, {
+      sessionId,
+      blockLen: BLOCK_LENGTH,
+      payloadSha256: digest
+    });
+
+    setTransfer({
+      encoder,
+      displayName: metadata.kind === "text" ? "Text message" : metadata.name,
+      kind: metadata.kind,
+      size: bytes.length,
+      sessionId,
+      cycleFrames: encoder.k + Math.max(1, Math.ceil(encoder.k * 0.35))
+    });
+    setSequence(0);
+    setRenderedFrame(null);
+    setIsPlaying(true);
+  };
 
   const prepareFile = async (file: File) => {
     setError(null);
@@ -41,34 +72,45 @@ export function SenderPanel({ onBack }: SenderPanelProps) {
     setIsPlaying(false);
     try {
       const fileBytes = new Uint8Array(await file.arrayBuffer());
-      const metadata = {
+      await activateTransfer(fileBytes, {
         name: file.name,
         size: file.size,
-        modified: file.lastModified
-      } as { name: string; size: number; modified: number; type?: string };
-      if (file.type) {
-        metadata.type = file.type;
-      }
-      const payload = wrapFilePayload(fileBytes, metadata);
-      const digest = await sha256(payload);
-      const sessionId = crypto.getRandomValues(new Uint32Array(1))[0]!;
-      const encoder = new LTEncoder(payload, {
-        sessionId,
-        blockLen: BLOCK_LENGTH,
-        payloadSha256: digest
+        modified: file.lastModified,
+        type: file.type || "application/octet-stream",
+        kind: "file"
       });
-
-      setTransfer({
-        encoder,
-        file,
-        sessionId,
-        cycleFrames: encoder.k + Math.max(1, Math.ceil(encoder.k * 0.35))
-      });
-      setSequence(0);
-      setRenderedFrame(null);
-      setIsPlaying(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The file could not be prepared.");
+    } finally {
+      setIsPreparing(false);
+    }
+  };
+
+  const textBytes = useMemo(() => textEncoder.encode(text), [text]);
+
+  const prepareText = async () => {
+    setError(null);
+    if (textBytes.length === 0) {
+      setError("Enter some text first.");
+      return;
+    }
+    if (textBytes.length > MAX_FILE_BYTES) {
+      setError("This lab build supports text up to 256 KB. Shorten it and try again.");
+      return;
+    }
+
+    setIsPreparing(true);
+    setIsPlaying(false);
+    try {
+      await activateTransfer(textBytes, {
+        name: "LumaDrop Text.txt",
+        size: textBytes.length,
+        modified: Date.now(),
+        type: "text/plain;charset=utf-8",
+        kind: "text"
+      });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The text could not be prepared.");
     } finally {
       setIsPreparing(false);
     }
@@ -128,6 +170,7 @@ export function SenderPanel({ onBack }: SenderPanelProps) {
     setRenderedFrame(null);
     setIsPlaying(false);
     setError(null);
+    setText("");
   };
 
   return (
@@ -137,31 +180,80 @@ export function SenderPanel({ onBack }: SenderPanelProps) {
       <div className="transfer-heading">
         <div>
           <div className="eyebrow"><span /> Send</div>
-          <h1>Turn a file into light.</h1>
+          <h1>Turn data into light.</h1>
         </div>
         <p>Keep this screen bright and steady while the other device scans.</p>
       </div>
 
       {!transfer ? (
         <section className="sender-empty">
-          <DropZone disabled={isPreparing} onFile={(file) => void prepareFile(file)} />
+          <div className="send-type-tabs" role="group" aria-label="Choose what to send">
+            <button
+              type="button"
+              aria-pressed={inputMode === "file"}
+              className={inputMode === "file" ? "is-active" : ""}
+              onClick={() => { setInputMode("file"); setError(null); }}
+            >
+              <File size={16} /> File
+            </button>
+            <button
+              type="button"
+              aria-pressed={inputMode === "text"}
+              className={inputMode === "text" ? "is-active" : ""}
+              onClick={() => { setInputMode("text"); setError(null); }}
+            >
+              <MessageSquareText size={16} /> Text
+            </button>
+          </div>
+
+          {inputMode === "file" ? (
+            <DropZone disabled={isPreparing} onFile={(file) => void prepareFile(file)} />
+          ) : (
+            <div className="text-composer">
+              <div className="text-composer-heading">
+                <label htmlFor="send-text">Paste or type text</label>
+                <span>{formatBytes(textBytes.length)} / 256 KB</span>
+              </div>
+              <textarea
+                id="send-text"
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                placeholder="A note, access code, configuration, recovery instructions…"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+                disabled={isPreparing}
+              />
+              <div className="text-composer-footer">
+                <p><ShieldAlert size={16} /><span>Private key or recovery phrase? Nothing is uploaded, but anyone who sees the QR may capture it.</span></p>
+                <button
+                  className="primary-button"
+                  type="button"
+                  disabled={isPreparing || textBytes.length === 0 || textBytes.length > MAX_FILE_BYTES}
+                  onClick={() => void prepareText()}
+                >
+                  <MessageSquareText size={17} /> Send text as light
+                </button>
+              </div>
+            </div>
+          )}
           {isPreparing && <p className="inline-status"><span className="spinner" /> Preparing optical frames…</p>}
           {error && <p className="error-message" role="alert">{error}</p>}
           <div className="tip-card">
             <span>Best for</span>
-            <p>Notes, contacts, keys, small documents and compressed images. Larger files come after we validate scanning throughput.</p>
+            <p>Notes, contacts, access codes, configuration, small documents and compressed images. Larger files come after we validate scanning throughput.</p>
           </div>
         </section>
       ) : (
         <section className="sender-workspace">
           <div className="sender-sidebar">
             <div className="file-card">
-              <div className="file-icon"><File size={24} /></div>
+              <div className="file-icon">{transfer.kind === "text" ? <MessageSquareText size={24} /> : <File size={24} />}</div>
               <div className="file-details">
-                <strong title={transfer.file.name}>{transfer.file.name}</strong>
-                <span>{formatBytes(transfer.file.size)}</span>
+                <strong title={transfer.displayName}>{transfer.displayName}</strong>
+                <span>{transfer.kind === "text" ? "Text" : "File"} · {formatBytes(transfer.size)}</span>
               </div>
-              <button className="icon-button" onClick={reset} aria-label="Choose another file"><RefreshCw size={17} /></button>
+              <button className="icon-button" onClick={reset} aria-label="Start another transfer"><RefreshCw size={17} /></button>
             </div>
 
             <div className="transfer-code-card">
@@ -188,7 +280,7 @@ export function SenderPanel({ onBack }: SenderPanelProps) {
               <div><span>One cycle</span><strong>{estimatedDuration}</strong></div>
             </div>
 
-            <div className="privacy-note"><ShieldCheck size={17} /><span><strong>Stays on this device</strong>This file never touches a server.</span></div>
+            <div className="privacy-note"><ShieldCheck size={17} /><span><strong>Stays on this device</strong>{transfer.kind === "text" ? "This text never touches a server. Keep the QR away from other cameras." : "This file never touches a server."}</span></div>
           </div>
 
           <div className="qr-stage">

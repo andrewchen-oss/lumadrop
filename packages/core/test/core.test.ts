@@ -24,7 +24,8 @@ test("file envelope wraps and unwraps bytes with metadata", () => {
     name: "../hello.txt",
     type: "text/plain",
     size: bytes.length,
-    modified: 1_725_000_000
+    modified: 1_725_000_000,
+    kind: "text"
   });
 
   const unwrapped = unwrapFilePayload(wrapped);
@@ -32,6 +33,7 @@ test("file envelope wraps and unwraps bytes with metadata", () => {
   assert.equal(unwrapped.meta.type, "text/plain");
   assert.equal(unwrapped.meta.size, bytes.length);
   assert.equal(unwrapped.meta.modified, 1_725_000_000);
+  assert.equal(unwrapped.meta.kind, "text");
   assert.ok(bytesEqual(unwrapped.bytes, bytes));
 });
 
@@ -94,6 +96,36 @@ test("fountain encoder/decoder recover after dropped and out-of-order frames", a
   assert.ok(assembled, `decoder state: ${JSON.stringify(decoder.state())}`);
   assert.ok(bytesEqual(assembled, payload));
   assert.ok(await verifyPayloadHash(assembled, digest));
+});
+
+test("UTF-8 text survives a complete optical transfer", async () => {
+  const sourceText = "LumaDrop text: 离线传输 ✓\nline two";
+  const textBytes = textEncoder.encode(sourceText);
+  const payload = wrapFilePayload(textBytes, {
+    name: "LumaDrop Text.txt",
+    type: "text/plain;charset=utf-8",
+    size: textBytes.length,
+    kind: "text"
+  });
+  const digest = await sha256(payload);
+  const encoder = new LTEncoder(payload, {
+    sessionId: 0x10203040,
+    blockLen: 32,
+    payloadSha256: digest
+  });
+  const decoder = LTDecoder.fromFrameBytes(encoder.encode(0));
+  assert.ok(decoder);
+
+  for (let sequence = 1; !decoder.state().complete && sequence < encoder.k * 4; sequence += 1) {
+    decoder.addFrameBytes(encoder.encode(sequence));
+  }
+
+  const assembled = decoder.assemble();
+  assert.ok(assembled);
+  assert.ok(await verifyPayloadHash(assembled, digest));
+  const recovered = unwrapFilePayload(assembled);
+  assert.equal(recovered.meta.kind, "text");
+  assert.equal(new TextDecoder().decode(recovered.bytes), sourceText);
 });
 
 test("fountain output is deterministic for the same session and sequence", async () => {

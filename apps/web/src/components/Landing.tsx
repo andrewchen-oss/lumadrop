@@ -23,7 +23,7 @@ export function Landing({
     <main className="landing page-shell">
       <section className="hero">
         <div className="eyebrow"><span /> Device-to-device transfer</div>
-        <h1>Move files<br />through <em>light.</em></h1>
+        <h1>Move files &amp; text<br />through <em>light.</em></h1>
         <p className="hero-copy">
           No cloud. No account. No pairing. Your screen becomes the connection.
         </p>
@@ -39,8 +39,8 @@ export function Landing({
           <span className="mode-number">01</span>
           <span className="mode-icon"><FileUp size={29} /></span>
           <span className="mode-content">
-            <strong>Send a file</strong>
-            <small>Turn it into animated light</small>
+            <strong>Send files or text</strong>
+            <small>Turn data into animated light</small>
           </span>
           <ArrowUpRight className="mode-arrow" size={25} />
         </button>
@@ -54,8 +54,8 @@ export function Landing({
           <span className="mode-number">02</span>
           <span className="mode-icon"><Camera size={29} /></span>
           <span className="mode-content">
-            <strong>Receive a file</strong>
-            <small>Scan another screen</small>
+            <strong>Receive files or text</strong>
+            <small>Recover a file or copy text</small>
           </span>
           <ArrowUpRight className="mode-arrow" size={25} />
         </button>

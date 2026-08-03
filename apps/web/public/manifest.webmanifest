@@ -1,7 +1,7 @@
 {
   "name": "LumaDrop",
   "short_name": "LumaDrop",
-  "description": "Move small files between nearby devices through light—without cloud storage or an account.",
+  "description": "Move small files and text between nearby devices through light—without cloud storage or an account.",
   "id": "/",
   "start_url": "/",
   "scope": "/",

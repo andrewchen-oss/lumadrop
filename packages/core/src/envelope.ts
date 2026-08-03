@@ -6,6 +6,7 @@ export type FilePayloadMeta = {
   type?: string;
   size: number;
   modified?: number;
+  kind?: "file" | "text";
 };
 
 export type WrappedFilePayload = {
@@ -78,6 +79,9 @@ export function unwrapFilePayload(payload: Uint8Array): WrappedFilePayload {
   }
   if (typeof parsed.modified === "number") {
     meta.modified = parsed.modified;
+  }
+  if (parsed.kind === "file" || parsed.kind === "text") {
+    meta.kind = parsed.kind;
   }
 
   return { meta, bytes };
