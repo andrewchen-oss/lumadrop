@@ -1,9 +1,19 @@
-import { bytesEqual, FrameHeader, FrameType, packFrame, parseFrame, ParsedFrame, splitmix32 } from "./protocol.js";
+import {
+  bytesEqual,
+  FRAME_FLAG_CYCLE_SHIFT,
+  FrameHeader,
+  FrameType,
+  packFrame,
+  parseFrame,
+  ParsedFrame,
+  splitmix32
+} from "./protocol.js";
 
 export type EncoderOptions = {
   sessionId: number;
   blockLen: number;
   payloadSha256: Uint8Array;
+  flags?: number;
 };
 
 export type DecoderState = {
@@ -17,15 +27,21 @@ type Equation = {
   data: Uint8Array;
 };
 
-export function frameIndices(k: number, seed: number, seq?: number): number[] {
+export function frameIndices(k: number, seed: number, seq?: number, flags = 0): number[] {
   if (k <= 0) {
     throw new Error("k must be positive");
   }
 
   if (seq !== undefined) {
     const repairFrames = Math.max(1, Math.ceil(k * 0.35));
-    const cycleOffset = (seq >>> 0) % (k + repairFrames);
+    const cycleLength = k + repairFrames;
+    const normalizedSequence = seq >>> 0;
+    const cycleOffset = normalizedSequence % cycleLength;
     if (cycleOffset < k) {
+      if ((flags & FRAME_FLAG_CYCLE_SHIFT) !== 0) {
+        const cycle = Math.floor(normalizedSequence / cycleLength);
+        return [(cycleOffset + (cycle % k)) % k];
+      }
       return [cycleOffset];
     }
   }
@@ -47,6 +63,7 @@ export class LTEncoder {
   private readonly sessionId: number;
   private readonly payloadSha256: Uint8Array;
   private readonly blocks: Uint8Array[];
+  private readonly flags: number;
 
   constructor(payload: Uint8Array, options: EncoderOptions) {
     if (options.blockLen <= 0) {
@@ -57,6 +74,7 @@ export class LTEncoder {
     this.blockLen = options.blockLen;
     this.totalLen = payload.length;
     this.payloadSha256 = options.payloadSha256;
+    this.flags = options.flags ?? 0;
     this.k = Math.ceil(payload.length / options.blockLen);
     this.blocks = [];
 
@@ -68,7 +86,7 @@ export class LTEncoder {
   }
 
   encode(seq: number): Uint8Array {
-    const indices = frameIndices(this.k, this.seedForSeq(seq), seq);
+    const indices = frameIndices(this.k, this.seedForSeq(seq), seq, this.flags);
     const mixed = new Uint8Array(this.blockLen);
     for (const index of indices) {
       xorInto(mixed, this.blocks[index]!);
@@ -81,7 +99,7 @@ export class LTEncoder {
       k: this.k,
       blockLen: this.blockLen,
       totalLen: this.totalLen,
-      flags: 0,
+      flags: this.flags,
       payloadSha256: this.payloadSha256
     };
 
@@ -133,7 +151,7 @@ export class LTDecoder {
     }
 
     const equation: Equation = {
-      pivots: new Set(frameIndices(this.k, this.seedForSeq(frame.header.seq), frame.header.seq)),
+      pivots: new Set(frameIndices(this.k, this.seedForSeq(frame.header.seq), frame.header.seq, frame.header.flags)),
       data: frame.block.slice()
     };
 
@@ -231,6 +249,7 @@ export class LTDecoder {
       && header.k === this.k
       && header.blockLen === this.blockLen
       && header.totalLen === this.totalLen
+      && header.flags === this.header?.flags
       && bytesEqual(header.payloadSha256, this.payloadSha256);
   }
 

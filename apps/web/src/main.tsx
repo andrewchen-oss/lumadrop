@@ -22,10 +22,14 @@ async function prepareOfflineApp() {
       ]);
     }
 
-    await Promise.allSettled([
+    const [, , scannerModule] = await Promise.all([
       import("./components/SenderPanel"),
       import("./components/ReceiverPanel"),
+      import("./lib/turbo-scanner"),
     ]);
+    await scannerModule.prepareTurboScannerAssets().catch((error: unknown) => {
+      console.warn("LumaDrop could not warm the Turbo scanner.", error);
+    });
 
     window.dispatchEvent(new Event("lumadrop-offline-ready"));
   } catch (error) {

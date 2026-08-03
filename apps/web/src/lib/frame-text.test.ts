@@ -4,7 +4,7 @@ import { decodeFrameText, encodeFrameText } from "./frame-text";
 
 describe("optical frame text", () => {
   it("round-trips even and odd binary payloads", () => {
-    for (const length of [1, 2, 3, 64, 287, 288]) {
+    for (const length of [1, 2, 3, 64, 287, 288, 1464, 1465]) {
       const bytes = Uint8Array.from({ length }, (_, index) => (index * 47 + 11) & 0xff);
       expect(decodeFrameText(encodeFrameText(bytes))).toEqual(bytes);
     }

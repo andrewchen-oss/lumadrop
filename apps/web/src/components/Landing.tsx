@@ -89,7 +89,7 @@ export function Landing({
       <section className="trust-row" aria-label="How LumaDrop works">
         <div><WifiOff size={17} /><span><strong>Offline by design</strong>No network required</span></div>
         <div><ShieldCheck size={17} /><span><strong>Private transfer</strong>Nothing is uploaded</span></div>
-        <div className="protocol-mark"><span className="pulse-dot" /> Protocol v1 · Lab build</div>
+        <div className="protocol-mark"><span className="pulse-dot" /> Protocol v1 · Turbo</div>
       </section>
     </main>
   );

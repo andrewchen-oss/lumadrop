@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   bytesEqual,
+  FRAME_FLAG_CYCLE_SHIFT,
   FrameType,
   LTDecoder,
   LTEncoder,
@@ -155,6 +156,16 @@ test("fountain stream starts systematically and then emits repair frames", () =>
   const repair = frameIndices(k, 0xdecafbad, k);
   assert.ok(repair.length >= 1);
   assert.ok(repair.every((index) => index >= 0 && index < k));
+});
+
+test("cycle-shift schedule changes systematic order between broadcast cycles", () => {
+  const k = 24;
+  const repairFrames = Math.ceil(k * 0.35);
+  const cycleLength = k + repairFrames;
+
+  assert.deepEqual(frameIndices(k, 1, 0, FRAME_FLAG_CYCLE_SHIFT), [0]);
+  assert.deepEqual(frameIndices(k, 1, cycleLength, FRAME_FLAG_CYCLE_SHIFT), [1]);
+  assert.deepEqual(frameIndices(k, 1, cycleLength * 2, FRAME_FLAG_CYCLE_SHIFT), [2]);
 });
 
 function deterministicBytes(length: number): Uint8Array {

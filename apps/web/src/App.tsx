@@ -26,7 +26,7 @@ export default function App() {
           <span className={`offline-badge${pwa.offlineReady ? " is-ready" : ""}`}>
             <i /> {pwa.offlineReady ? "Ready offline" : "Preparing offline"}
           </span>
-          <span className="build-label">Installable · MVP</span>
+          <span className="build-label">Installable · Turbo</span>
         </div>
       </header>
 

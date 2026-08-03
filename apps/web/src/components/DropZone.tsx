@@ -65,7 +65,7 @@ export function DropZone({ disabled = false, onFile }: DropZoneProps) {
       </div>
       <div>
         <strong>Drop a file into the light</strong>
-        <p>or click to choose · up to 256 KB</p>
+        <p>or click to choose · up to 8 MB</p>
       </div>
       <span className="drop-zone-pill">
         <Sparkles size={13} /> No upload

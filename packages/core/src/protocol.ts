@@ -4,6 +4,7 @@ export const FRAME_MAGIC = new Uint8Array([0x4c, 0x44, 0x30, 0x31]); // LD01
 export const FRAME_VERSION = 1;
 export const FRAME_HEADER_LEN = 64;
 export const PAYLOAD_HASH_LEN = 32;
+export const FRAME_FLAG_CYCLE_SHIFT = 1 << 0;
 
 export enum FrameType {
   Data = 1,

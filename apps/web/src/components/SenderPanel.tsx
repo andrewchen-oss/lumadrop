@@ -1,14 +1,22 @@
-import { LTEncoder, sha256, wrapFilePayload } from "@lumadrop/core";
+import { FRAME_FLAG_CYCLE_SHIFT, LTEncoder, sha256, wrapFilePayload } from "@lumadrop/core";
 import { ArrowLeft, File, Gauge, MessageSquareText, Pause, Play, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react";
 import QRCode from "qrcode";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { encodeFrameText } from "../lib/frame-text";
 import { formatBytes, formatDuration, transferCode } from "../lib/format";
+import {
+  estimatedOpticalBytesPerSecond,
+  MAX_FILE_BYTES,
+  MAX_TEXT_BYTES,
+  REPAIR_FRAME_RATIO,
+  TURBO_BLOCK_LENGTH,
+  TURBO_DEFAULT_FPS,
+  TURBO_MAX_FPS,
+  TURBO_MIN_FPS
+} from "../lib/transfer-config";
 import { DropZone } from "./DropZone";
 
-const MAX_FILE_BYTES = 256 * 1024;
-const BLOCK_LENGTH = 128;
 const textEncoder = new TextEncoder();
 
 type PreparedTransfer = {
@@ -25,12 +33,14 @@ type SenderPanelProps = {
 };
 
 export function SenderPanel({ onBack }: SenderPanelProps) {
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null);
+  const sequenceRef = useRef(0);
   const [inputMode, setInputMode] = useState<"file" | "text">("file");
   const [text, setText] = useState("");
   const [transfer, setTransfer] = useState<PreparedTransfer | null>(null);
-  const [sequence, setSequence] = useState(0);
-  const [renderedFrame, setRenderedFrame] = useState<{ url: string; sequence: number } | null>(null);
-  const [speed, setSpeed] = useState(8);
+  const [renderedSequence, setRenderedSequence] = useState(0);
+  const [hasRenderedFrame, setHasRenderedFrame] = useState(false);
+  const [speed, setSpeed] = useState(TURBO_DEFAULT_FPS);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,8 +54,9 @@ export function SenderPanel({ onBack }: SenderPanelProps) {
     const sessionId = crypto.getRandomValues(new Uint32Array(1))[0]!;
     const encoder = new LTEncoder(payload, {
       sessionId,
-      blockLen: BLOCK_LENGTH,
-      payloadSha256: digest
+      blockLen: TURBO_BLOCK_LENGTH,
+      payloadSha256: digest,
+      flags: FRAME_FLAG_CYCLE_SHIFT
     });
 
     setTransfer({
@@ -54,17 +65,18 @@ export function SenderPanel({ onBack }: SenderPanelProps) {
       kind: metadata.kind,
       size: bytes.length,
       sessionId,
-      cycleFrames: encoder.k + Math.max(1, Math.ceil(encoder.k * 0.35))
+      cycleFrames: encoder.k + Math.max(1, Math.ceil(encoder.k * REPAIR_FRAME_RATIO))
     });
-    setSequence(0);
-    setRenderedFrame(null);
+    sequenceRef.current = 0;
+    setRenderedSequence(0);
+    setHasRenderedFrame(false);
     setIsPlaying(true);
   };
 
   const prepareFile = async (file: File) => {
     setError(null);
     if (file.size > MAX_FILE_BYTES) {
-      setError("This lab build supports files up to 256 KB. Try a smaller file for the optical demo.");
+      setError("Turbo mode supports files up to 8 MB.");
       return;
     }
 
@@ -94,8 +106,8 @@ export function SenderPanel({ onBack }: SenderPanelProps) {
       setError("Enter some text first.");
       return;
     }
-    if (textBytes.length > MAX_FILE_BYTES) {
-      setError("This lab build supports text up to 256 KB. Shorten it and try again.");
+    if (textBytes.length > MAX_TEXT_BYTES) {
+      setError("Turbo mode supports text up to 512 KB. Shorten it and try again.");
       return;
     }
 
@@ -120,42 +132,70 @@ export function SenderPanel({ onBack }: SenderPanelProps) {
     if (!isPlaying || !transfer) {
       return;
     }
-    const timer = window.setInterval(() => {
-      setSequence((current) => (current + 1) >>> 0);
-    }, 1000 / speed);
-    return () => window.clearInterval(timer);
-  }, [isPlaying, speed, transfer]);
-
-  useEffect(() => {
-    if (!transfer) {
-      return;
-    }
-
     let cancelled = false;
-    const frame = transfer.encoder.encode(sequence);
-    void QRCode.toDataURL(encodeFrameText(frame), {
-      width: 640,
-      margin: 4,
-      errorCorrectionLevel: "M",
-      color: { dark: "#10110f", light: "#ffffff" }
-    }).then(async (url) => {
-      const image = new Image();
-      image.src = url;
-      await image.decode();
-      if (!cancelled) {
-        setRenderedFrame({ url, sequence });
+    let animationFrame = 0;
+    let isRendering = false;
+    let nextFrameAt = 0;
+    let lastUiUpdateAt = 0;
+    const frameInterval = 1000 / speed;
+
+    const renderLoop = (timestamp: number) => {
+      if (cancelled) {
+        return;
       }
-    }).catch((cause: unknown) => {
-      if (!cancelled) {
-        setError(cause instanceof Error ? cause.message : "A QR frame could not be rendered.");
-        setIsPlaying(false);
+
+      if (!isRendering && timestamp >= nextFrameAt) {
+        const canvas = qrCanvasRef.current;
+        if (canvas) {
+          isRendering = true;
+          const sequence = sequenceRef.current;
+          const frame = transfer.encoder.encode(sequence);
+          void QRCode.toCanvas(canvas, encodeFrameText(frame), {
+            width: 720,
+            margin: 2,
+            errorCorrectionLevel: "L",
+            color: { dark: "#10110f", light: "#ffffff" }
+          }).then(() => {
+            if (cancelled) {
+              return;
+            }
+            sequenceRef.current = (sequence + 1) >>> 0;
+            if (sequence === 0) {
+              setHasRenderedFrame(true);
+            }
+            if (timestamp - lastUiUpdateAt >= 200 || sequence === 0) {
+              setRenderedSequence(sequence);
+              lastUiUpdateAt = timestamp;
+            }
+          }).catch((cause: unknown) => {
+            if (!cancelled) {
+              setError(cause instanceof Error ? cause.message : "A QR frame could not be rendered.");
+              setIsPlaying(false);
+            }
+          }).finally(() => {
+            isRendering = false;
+          });
+
+          nextFrameAt += frameInterval;
+          if (nextFrameAt < timestamp - frameInterval) {
+            nextFrameAt = timestamp + frameInterval;
+          }
+        }
       }
+
+      animationFrame = window.requestAnimationFrame(renderLoop);
+    };
+
+    animationFrame = window.requestAnimationFrame((timestamp) => {
+      nextFrameAt = timestamp;
+      renderLoop(timestamp);
     });
 
     return () => {
       cancelled = true;
+      window.cancelAnimationFrame(animationFrame);
     };
-  }, [sequence, transfer]);
+  }, [isPlaying, speed, transfer]);
 
   const estimatedDuration = useMemo(() => {
     if (!transfer) {
@@ -164,10 +204,13 @@ export function SenderPanel({ onBack }: SenderPanelProps) {
     return formatDuration(transfer.cycleFrames / speed);
   }, [speed, transfer]);
 
+  const estimatedRate = formatBytes(estimatedOpticalBytesPerSecond(speed));
+
   const reset = () => {
     setTransfer(null);
-    setSequence(0);
-    setRenderedFrame(null);
+    sequenceRef.current = 0;
+    setRenderedSequence(0);
+    setHasRenderedFrame(false);
     setIsPlaying(false);
     setError(null);
     setText("");
@@ -212,7 +255,7 @@ export function SenderPanel({ onBack }: SenderPanelProps) {
             <div className="text-composer">
               <div className="text-composer-heading">
                 <label htmlFor="send-text">Paste or type text</label>
-                <span>{formatBytes(textBytes.length)} / 256 KB</span>
+                <span>{formatBytes(textBytes.length)} / 512 KB</span>
               </div>
               <textarea
                 id="send-text"
@@ -229,7 +272,7 @@ export function SenderPanel({ onBack }: SenderPanelProps) {
                 <button
                   className="primary-button"
                   type="button"
-                  disabled={isPreparing || textBytes.length === 0 || textBytes.length > MAX_FILE_BYTES}
+                  disabled={isPreparing || textBytes.length === 0 || textBytes.length > MAX_TEXT_BYTES}
                   onClick={() => void prepareText()}
                 >
                   <MessageSquareText size={17} /> Send text as light
@@ -240,8 +283,8 @@ export function SenderPanel({ onBack }: SenderPanelProps) {
           {isPreparing && <p className="inline-status"><span className="spinner" /> Preparing optical frames…</p>}
           {error && <p className="error-message" role="alert">{error}</p>}
           <div className="tip-card">
-            <span>Best for</span>
-            <p>Notes, contacts, access codes, configuration, small documents and compressed images. Larger files come after we validate scanning throughput.</p>
+            <span>Turbo mode</span>
+            <p>Up to 8 MB per file. For the fastest transfer, turn brightness up and keep both devices steady.</p>
           </div>
         </section>
       ) : (
@@ -263,20 +306,21 @@ export function SenderPanel({ onBack }: SenderPanelProps) {
             </div>
 
             <div className="speed-control">
-              <label htmlFor="frame-speed"><Gauge size={17} /> Frame speed <strong>{speed} fps</strong></label>
+              <label htmlFor="frame-speed"><Gauge size={17} /> Turbo speed <strong>{speed} fps</strong></label>
               <input
                 id="frame-speed"
                 type="range"
-                min="3"
-                max="12"
+                min={TURBO_MIN_FPS}
+                max={TURBO_MAX_FPS}
+                step="3"
                 value={speed}
                 onChange={(event) => setSpeed(Number(event.target.value))}
               />
-              <div><span>Safer</span><span>Faster</span></div>
+              <div><span>Turbo</span><span>Max</span></div>
             </div>
 
             <div className="sender-stats">
-              <div><span>Blocks</span><strong>{transfer.encoder.k}</strong></div>
+              <div><span>Optical rate</span><strong>~{estimatedRate}/s</strong></div>
               <div><span>One cycle</span><strong>{estimatedDuration}</strong></div>
             </div>
 
@@ -285,13 +329,12 @@ export function SenderPanel({ onBack }: SenderPanelProps) {
 
           <div className="qr-stage">
             <div className="qr-stage-top">
-              <span className={`live-indicator${isPlaying ? " is-live" : ""}`}><i />{isPlaying ? "Broadcasting" : "Paused"}</span>
-              <span>Frame {((renderedFrame?.sequence ?? sequence) % transfer.cycleFrames) + 1} / {transfer.cycleFrames}</span>
+              <span className={`live-indicator${isPlaying ? " is-live" : ""}`}><i />{isPlaying ? "Turbo broadcasting" : "Paused"}</span>
+              <span>Frame {(renderedSequence % transfer.cycleFrames) + 1} / {transfer.cycleFrames}</span>
             </div>
             <button className="qr-canvas-wrap" onClick={() => setIsPlaying((value) => !value)} aria-label={isPlaying ? "Pause transfer" : "Resume transfer"}>
-              {renderedFrame ? (
-                <img src={renderedFrame.url} alt="Animated LumaDrop transfer frame" />
-              ) : (
+              <canvas ref={qrCanvasRef} aria-label="Animated LumaDrop transfer frame" />
+              {!hasRenderedFrame && (
                 <span className="qr-loading"><span className="spinner" /> Preparing frame…</span>
               )}
               {!isPlaying && <span className="paused-overlay"><Play size={22} fill="currentColor" /> Resume</span>}

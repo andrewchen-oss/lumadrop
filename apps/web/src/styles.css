@@ -1200,7 +1200,7 @@ button {
   box-shadow: 0 30px 90px rgba(0, 0, 0, 0.38), 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
 
-.qr-canvas-wrap img {
+.qr-canvas-wrap canvas {
   width: 100% !important;
   height: 100% !important;
   display: block;

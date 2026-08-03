@@ -4,12 +4,18 @@ import {
   unwrapFilePayload,
   verifyPayloadHash
 } from "@lumadrop/core";
-import { BrowserQRCodeReader, type IScannerControls } from "@zxing/browser";
 import { ArrowLeft, Camera, Check, Copy, Download, Image, RefreshCw, ScanLine, ShieldCheck } from "lucide-react";
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 
 import { decodeFrameText } from "../lib/frame-text";
 import { formatBytes, transferCode } from "../lib/format";
+import { MAX_WRAPPED_PAYLOAD_BYTES } from "../lib/transfer-config";
+import {
+  readQrImage,
+  startTurboScanner,
+  type TurboScannerControls,
+  type TurboScannerStats
+} from "../lib/turbo-scanner";
 
 type ReceiverPanelProps = {
   onBack: () => void;
@@ -23,12 +29,15 @@ type ReceivedTransfer =
 
 export function ReceiverPanel({ onBack }: ReceiverPanelProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const scannerControlsRef = useRef<IScannerControls | null>(null);
+  const scannerControlsRef = useRef<TurboScannerControls | null>(null);
+  const scannerAbortRef = useRef<AbortController | null>(null);
   const decoderRef = useRef<LTDecoder | null>(null);
   const seenSequencesRef = useRef(new Set<number>());
   const completedRef = useRef(false);
   const downloadUrlRef = useRef<string | null>(null);
   const copyResetTimerRef = useRef<number | null>(null);
+  const lastProgressUpdateRef = useRef(0);
+  const activeBlockLengthRef = useRef(0);
 
   const [status, setStatus] = useState<ScannerStatus>("idle");
   const [progress, setProgress] = useState(0);
@@ -37,11 +46,15 @@ export function ReceiverPanel({ onBack }: ReceiverPanelProps) {
   const [message, setMessage] = useState("Ready when you are.");
   const [receivedTransfer, setReceivedTransfer] = useState<ReceivedTransfer | null>(null);
   const [copied, setCopied] = useState(false);
+  const [scannerStats, setScannerStats] = useState<TurboScannerStats | null>(null);
 
   const stopScanner = useCallback(() => {
+    scannerAbortRef.current?.abort();
+    scannerAbortRef.current = null;
     scannerControlsRef.current?.stop();
     scannerControlsRef.current = null;
-    setStatus((current) => current === "scanning" ? "idle" : current);
+    setStatus((current) => current === "requesting" || current === "scanning" ? "idle" : current);
+    setMessage("Camera stopped. Ready when you are.");
   }, []);
 
   const processFrameText = useCallback(async (text: string) => {
@@ -60,6 +73,11 @@ export function ReceiverPanel({ onBack }: ReceiverPanelProps) {
       setMessage("A LumaDrop frame was seen, but it was incomplete.");
       return;
     }
+    if (parsed.header.totalLen > MAX_WRAPPED_PAYLOAD_BYTES) {
+      setMessage("This transfer is larger than the 8 MB Turbo limit.");
+      return;
+    }
+    activeBlockLengthRef.current = parsed.header.blockLen;
 
     let decoder = decoderRef.current;
     if (!decoder) {
@@ -78,12 +96,16 @@ export function ReceiverPanel({ onBack }: ReceiverPanelProps) {
       }
       seenSequencesRef.current.add(parsed.header.seq);
       decoder.addParsedFrame(parsed);
-      setFramesSeen(seenSequencesRef.current.size);
     }
 
     const decoderState = decoder.state();
     const nextProgress = Math.round(((decoder.k - decoderState.neededBlocks) / decoder.k) * 100);
-    setProgress(nextProgress);
+    const now = performance.now();
+    if (decoderState.complete || now - lastProgressUpdateRef.current >= 100) {
+      setFramesSeen(seenSequencesRef.current.size);
+      setProgress(nextProgress);
+      lastProgressUpdateRef.current = now;
+    }
     setMessage(decoderState.complete ? "All blocks received. Verifying…" : "Receiving light frames…");
 
     if (!decoderState.complete) {
@@ -118,6 +140,7 @@ export function ReceiverPanel({ onBack }: ReceiverPanelProps) {
       setMessage(isText ? "Text recovered and verified." : "File recovered and verified.");
       scannerControlsRef.current?.stop();
       scannerControlsRef.current = null;
+      scannerAbortRef.current = null;
     } catch (cause) {
       completedRef.current = false;
       setStatus("error");
@@ -130,57 +153,66 @@ export function ReceiverPanel({ onBack }: ReceiverPanelProps) {
       return;
     }
     setStatus("requesting");
-    setMessage("Requesting camera access…");
+    setMessage("Starting the Turbo camera decoder…");
+    const abortController = new AbortController();
+    scannerAbortRef.current?.abort();
+    scannerAbortRef.current = abortController;
     try {
-      const reader = new BrowserQRCodeReader(undefined, {
-        delayBetweenScanAttempts: 70,
-        delayBetweenScanSuccess: 35
-      });
-      const controls = await reader.decodeFromConstraints(
-        {
-          audio: false,
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }
+      const controls = await startTurboScanner(videoRef.current, {
+        onText: (text) => {
+          void processFrameText(text).catch((cause: unknown) => {
+            setStatus("error");
+            setMessage(cause instanceof Error ? cause.message : "A Turbo frame could not be processed.");
+          });
         },
-        videoRef.current,
-        (result) => {
-          if (result) {
-            void processFrameText(result.getText());
-          }
+        onStats: setScannerStats,
+        onError: (errorMessage) => {
+          setMessage(errorMessage);
         }
-      );
+      }, abortController.signal);
+      if (abortController.signal.aborted) {
+        controls.stop();
+        return;
+      }
       scannerControlsRef.current = controls;
       setStatus("scanning");
-      setMessage("Point the camera at a LumaDrop screen.");
+      setMessage("Turbo scanner ready. Fill the guide with the QR code.");
     } catch (cause) {
+      if (cause instanceof Error && cause.name === "AbortError") {
+        return;
+      }
       setStatus("error");
       setMessage(cause instanceof Error ? cause.message : "Camera access is unavailable.");
+    } finally {
+      if (scannerAbortRef.current === abortController && (abortController.signal.aborted || !scannerControlsRef.current)) {
+        scannerAbortRef.current = null;
+      }
     }
   };
 
   const scanImage = async (file: File) => {
-    const objectUrl = URL.createObjectURL(file);
     setMessage("Reading QR image…");
     try {
-      const reader = new BrowserQRCodeReader();
-      const result = await reader.decodeFromImageUrl(objectUrl);
-      await processFrameText(result.getText());
+      const text = await readQrImage(file);
+      if (!text) {
+        throw new Error("No QR code found.");
+      }
+      await processFrameText(text);
     } catch {
       setMessage("No readable LumaDrop QR was found in that image.");
-    } finally {
-      URL.revokeObjectURL(objectUrl);
     }
   };
 
   const reset = () => {
     scannerControlsRef.current?.stop();
     scannerControlsRef.current = null;
+    scannerAbortRef.current?.abort();
+    scannerAbortRef.current = null;
     decoderRef.current = null;
     seenSequencesRef.current.clear();
     completedRef.current = false;
+    lastProgressUpdateRef.current = 0;
+    activeBlockLengthRef.current = 0;
     if (downloadUrlRef.current) {
       URL.revokeObjectURL(downloadUrlRef.current);
       downloadUrlRef.current = null;
@@ -191,6 +223,7 @@ export function ReceiverPanel({ onBack }: ReceiverPanelProps) {
     setSessionCode(null);
     setReceivedTransfer(null);
     setCopied(false);
+    setScannerStats(null);
     if (copyResetTimerRef.current !== null) {
       window.clearTimeout(copyResetTimerRef.current);
       copyResetTimerRef.current = null;
@@ -219,6 +252,7 @@ export function ReceiverPanel({ onBack }: ReceiverPanelProps) {
   };
 
   useEffect(() => () => {
+    scannerAbortRef.current?.abort();
     scannerControlsRef.current?.stop();
     if (downloadUrlRef.current) {
       URL.revokeObjectURL(downloadUrlRef.current);
@@ -230,6 +264,10 @@ export function ReceiverPanel({ onBack }: ReceiverPanelProps) {
 
   const progressStyle = { "--progress": `${progress}%` } as CSSProperties;
   const cameraActive = status === "requesting" || status === "scanning" || status === "verifying";
+  const showLiveScannerStats = status === "scanning" && (scannerStats?.decodedFps ?? 0) > 0;
+  const liveOpticalRate = showLiveScannerStats && scannerStats && activeBlockLengthRef.current > 0
+    ? formatBytes(scannerStats.decodedFps * activeBlockLengthRef.current)
+    : null;
 
   return (
     <main className="page-shell transfer-page">
@@ -275,9 +313,11 @@ export function ReceiverPanel({ onBack }: ReceiverPanelProps) {
               <div><strong>{progress}%</strong><span>recovered</span></div>
             </div>
             <div className="progress-copy">
-              <span className={`status-label status-${status}`}><i />{status === "complete" ? "Complete" : status === "error" ? "Needs attention" : cameraActive ? "Scanning" : "Waiting"}</span>
+              <span className={`status-label status-${status}`}><i />{status === "complete" ? "Complete" : status === "error" ? "Needs attention" : cameraActive ? "Turbo scanning" : "Waiting"}</span>
               <strong>{message}</strong>
-              <small>{framesSeen > 0 ? `${framesSeen} unique frames captured` : "Progress appears after the first valid frame."}</small>
+              <small>{framesSeen > 0
+                ? `${framesSeen} unique frames${showLiveScannerStats ? ` · ${scannerStats?.decodedFps ?? 0} fps` : ""}${liveOpticalRate ? ` · ~${liveOpticalRate}/s` : ""}`
+                : "Progress appears after the first valid frame."}</small>
             </div>
           </div>
 
@@ -336,7 +376,7 @@ export function ReceiverPanel({ onBack }: ReceiverPanelProps) {
             <button className="reset-button" onClick={reset}><RefreshCw size={15} /> Reset receiver</button>
           )}
 
-          <div className="receiver-tip"><strong>Tip</strong><p>Turn up the sender’s brightness, avoid glare, and hold both devices still.</p></div>
+          <div className="receiver-tip"><strong>Turbo</strong><p>Turn up the sender’s brightness, fill the guide with the QR, and hold both devices still.</p></div>
         </aside>
       </section>
     </main>

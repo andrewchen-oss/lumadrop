@@ -1,4 +1,4 @@
-const CACHE_NAME = "lumadrop-shell-v4";
+const CACHE_NAME = "lumadrop-shell-v5-turbo";
 const APP_SHELL = [
   "/manifest.webmanifest",
   "/icon.svg",
