@@ -47,7 +47,9 @@ export default function App() {
       </Suspense>
 
       <footer className="site-footer">
-        <span>© LumaDrop</span>
+        <span className="creator-credit">
+          Creator · <a href="https://x.com/0xajc" target="_blank" rel="me noopener noreferrer" aria-label="Follow creator @0xajc on X">@0xajc</a>
+        </span>
         <span>No account. No cloud. Data stays.</span>
       </footer>
 

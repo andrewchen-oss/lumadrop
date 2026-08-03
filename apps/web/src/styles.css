@@ -637,6 +637,20 @@ button {
   text-transform: uppercase;
 }
 
+.creator-credit a {
+  padding-bottom: 2px;
+  border-bottom: 1px solid #b8bbb0;
+  color: #33362f;
+  font-weight: 700;
+  text-decoration: none;
+  transition: border-color 160ms ease, color 160ms ease;
+}
+
+.creator-credit a:hover {
+  border-color: var(--acid-deep);
+  color: #527d16;
+}
+
 .transfer-page {
   flex: 1;
   padding: 34px 0 70px;
@@ -1609,6 +1623,9 @@ button {
 
   .site-footer {
     min-height: 60px;
+    padding: 17px 0;
+    flex-wrap: wrap;
+    gap: 10px 18px;
   }
 
   .install-modal-backdrop {
