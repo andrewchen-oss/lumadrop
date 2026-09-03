@@ -12,6 +12,7 @@
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces",
     "dev": "npm run build -w @lumadrop/core && npm run dev -w @lumadrop/web",
+    "send": "npm run build -w @lumadrop/core && npm run build -w @lumadrop/cli && node apps/cli/dist/src/index.js",
     "clean": "rm -rf packages/*/dist"
   },
   "devDependencies": {
