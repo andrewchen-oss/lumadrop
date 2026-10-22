@@ -35,6 +35,16 @@ npm run dev
 
 Open `http://localhost:5173` for local development. Camera access works on localhost. Testing between a computer and phone requires an HTTPS deployment because mobile browsers restrict camera access on insecure network URLs.
 
+## Send from a terminal
+
+After `npm install`, a file on a remote or headless machine can be sent directly from an IDE or SSH terminal:
+
+```bash
+npm run send -- /path/to/file
+```
+
+Open LumaDrop's **Receive** screen on a phone and scan the animated QR code. Maximize the terminal or zoom out if the QR code is clipped, and press Ctrl+C when the transfer finishes.
+
 ## License
 
 [MIT](LICENSE) © 2026 [0xajc](https://x.com/0xajc)
